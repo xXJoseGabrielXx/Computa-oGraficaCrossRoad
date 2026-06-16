@@ -4,7 +4,7 @@ Jogo 3D inspirado em Crossy Road, desenvolvido com Python 3, PyOpenGL, FreeGLUT 
 
 ---
 
-## 📁 Estrutura de Pastas
+## Estrutura de Pastas
 
 ```
 cruzarua/
@@ -34,7 +34,7 @@ cruzarua/
 
 ---
 
-## 🚀 Instalação
+## Instalação
 
 ### 1. Instale o Python 3 e o FreeGLUT
 
@@ -72,20 +72,20 @@ python main.py
 
 ---
 
-## 🎮 Controles
+##  Controles
 
 | Tecla | Ação |
 |-------|------|
-| `D`   | Avançar (frente) |
-| `W`   | Mover para esquerda |
-| `S`   | Mover para direita |
-| `A`   | Recuar |
+| `W`   | Avançar (frente) |
+| `A`   | Mover para esquerda |
+| `D`   | Mover para direita |
+| `S`   | Recuar |
 | `R`   | Reiniciar (menu ou game over) |
 | `ESC` | Sair |
 
 ---
 
-## 🏗️ Arquitetura
+## Arquitetura
 
 ### Separação de responsabilidades
 
@@ -127,7 +127,7 @@ eagle_idle   = max(2.0, EAGLE_IDLE_TIME - score × DIFF_EAGLE_SCALE)
 
 ---
 
-## 🐛 Solução de Problemas
+## Solução de Problemas
 
 **`No module named 'OpenGL'`**
 ```bash
