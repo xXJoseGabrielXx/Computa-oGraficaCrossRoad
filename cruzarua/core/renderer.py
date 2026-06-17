@@ -1,8 +1,5 @@
 """
 core/renderer.py - Sistema de renderização OpenGL.
-
-Centraliza todas as chamadas de desenho: cubos, prismas,
-iluminação, névoa e overlays 2D (HUD).
 """
 
 from OpenGL.GL import *
@@ -14,48 +11,42 @@ from utils.constants import *
 
 
 class Renderer:
-    """
-    Responsável por toda a renderização do jogo.
-    Oferece primitivas de alto nível (draw_box, draw_tree, etc.)
-    e gerencia estado de iluminação / névoa.
-    """
 
     def __init__(self, width, height):
         self.width  = width
         self.height = height
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Inicialização GL
-    # ──────────────────────────────────────────────────────────────────────────
+    # ─── Inicialização ────────────────────────────────────────────────────────
 
     def init(self):
-        """Configura estado GL inicial."""
         glClearColor(*COLOR_SKY, 1.0)
         glEnable(GL_DEPTH_TEST)
         glDepthFunc(GL_LEQUAL)
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
-        glShadeModel(GL_SMOOTH)
 
-        # Iluminação
+        # Iluminação — usada APENAS em objetos 3D (veículos, árvores, player)
+        # O terreno é desenhado com glDisable(GL_LIGHTING) para evitar estouro.
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
-        glLightfv(GL_LIGHT0, GL_POSITION,  [4.0, 10.0, 5.0, 0.0])
-        glLightfv(GL_LIGHT0, GL_DIFFUSE,   [1.0, 0.95, 0.85, 1.0])
-        glLightfv(GL_LIGHT0, GL_AMBIENT,   [0.35, 0.35, 0.40, 1.0])
-        glLightfv(GL_LIGHT0, GL_SPECULAR,  [0.3, 0.3, 0.3, 1.0])
+        glLightfv(GL_LIGHT0, GL_POSITION, [4.0, 10.0, 5.0, 0.0])
+        glLightfv(GL_LIGHT0, GL_DIFFUSE,  [0.70, 0.68, 0.60, 1.0])
+        glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.0,  0.0,  0.0,  1.0])
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [0.0,  0.0,  0.0,  1.0])
+        # Ambient global: ilumina faces em sombra sem estouro
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.42, 0.42, 0.46, 1.0])
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+        glShadeModel(GL_SMOOTH)
 
-        # Névoa leve
+        # Névoa
         glEnable(GL_FOG)
         glFogfv(GL_FOG_COLOR, [*COLOR_FOG, 1.0])
         glFogi(GL_FOG_MODE, GL_LINEAR)
-        glFogf(GL_FOG_START, 12.0)
-        glFogf(GL_FOG_END,   28.0)
+        glFogf(GL_FOG_START, 14.0)
+        glFogf(GL_FOG_END,   30.0)
 
     def resize(self, width, height):
-        """Atualiza viewport e projeção ao redimensionar."""
         if height == 0:
             height = 1
         self.width  = width
@@ -63,18 +54,13 @@ class Renderer:
         glViewport(0, 0, width, height)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        gluPerspective(45.0, width / height, 0.1, 100.0)
+        gluPerspective(42.0, width / height, 0.1, 120.0)
         glMatrixMode(GL_MODELVIEW)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Primitivas geométricas
-    # ──────────────────────────────────────────────────────────────────────────
+    # ─── Primitivas ───────────────────────────────────────────────────────────
 
     def draw_box(self, x, y, z, w, h, d, color):
-        """
-        Desenha um cubo/prisma em (x, y, z) com dimensões (w, h, d).
-        x, y, z = posição do centro.
-        """
+        """Cubo/prisma centrado em (x,y,z) com dimensões (w,h,d). Usa iluminação."""
         glColor3f(*color)
         glPushMatrix()
         glTranslatef(x, y, z)
@@ -83,14 +69,9 @@ class Renderer:
         glPopMatrix()
 
     def draw_box_faces(self, x, y, z, w, h, d, colors):
-        """
-        Desenha prisma com cor diferente por face.
-        colors = dict com chaves 'top','bottom','front','back','left','right'.
-        """
         hw, hh, hd = w * 0.5, h * 0.5, d * 0.5
         glPushMatrix()
         glTranslatef(x, y, z)
-
         faces = {
             'top':    ([( hw, hh, hd),(-hw, hh, hd),(-hw, hh,-hd),( hw, hh,-hd)], ( 0, 1, 0)),
             'bottom': ([(-hw,-hh, hd),( hw,-hh, hd),( hw,-hh,-hd),(-hw,-hh,-hd)], ( 0,-1, 0)),
@@ -99,7 +80,6 @@ class Renderer:
             'left':   ([(-hw,-hh,-hd),(-hw,-hh, hd),(-hw, hh, hd),(-hw, hh,-hd)], (-1, 0, 0)),
             'right':  ([( hw,-hh, hd),( hw,-hh,-hd),( hw, hh,-hd),( hw, hh, hd)], ( 1, 0, 0)),
         }
-
         glBegin(GL_QUADS)
         for key, (verts, normal) in faces.items():
             c = colors.get(key, colors.get('top', (1, 1, 1)))
@@ -108,258 +88,224 @@ class Renderer:
             for v in verts:
                 glVertex3f(*v)
         glEnd()
-
         glPopMatrix()
 
     def _unit_box(self):
-        """Cubo unitário centrado na origem, com normais corretas."""
+        """Cubo unitário centrado na origem com normais corretas."""
         glBegin(GL_QUADS)
-        # Topo
-        glNormal3f(0, 1, 0)
-        glVertex3f( 0.5, 0.5, 0.5); glVertex3f(-0.5, 0.5, 0.5)
-        glVertex3f(-0.5, 0.5,-0.5); glVertex3f( 0.5, 0.5,-0.5)
-        # Base
-        glNormal3f(0,-1, 0)
-        glVertex3f(-0.5,-0.5, 0.5); glVertex3f( 0.5,-0.5, 0.5)
-        glVertex3f( 0.5,-0.5,-0.5); glVertex3f(-0.5,-0.5,-0.5)
-        # Frente
         glNormal3f(0, 0, 1)
         glVertex3f(-0.5,-0.5, 0.5); glVertex3f( 0.5,-0.5, 0.5)
         glVertex3f( 0.5, 0.5, 0.5); glVertex3f(-0.5, 0.5, 0.5)
-        # Trás
+
         glNormal3f(0, 0,-1)
         glVertex3f( 0.5,-0.5,-0.5); glVertex3f(-0.5,-0.5,-0.5)
         glVertex3f(-0.5, 0.5,-0.5); glVertex3f( 0.5, 0.5,-0.5)
-        # Esquerda
+
         glNormal3f(-1, 0, 0)
         glVertex3f(-0.5,-0.5,-0.5); glVertex3f(-0.5,-0.5, 0.5)
         glVertex3f(-0.5, 0.5, 0.5); glVertex3f(-0.5, 0.5,-0.5)
-        # Direita
+
         glNormal3f(1, 0, 0)
         glVertex3f( 0.5,-0.5, 0.5); glVertex3f( 0.5,-0.5,-0.5)
         glVertex3f( 0.5, 0.5,-0.5); glVertex3f( 0.5, 0.5, 0.5)
+
+        glNormal3f(0, 1, 0)
+        glVertex3f(-0.5, 0.5, 0.5); glVertex3f( 0.5, 0.5, 0.5)
+        glVertex3f( 0.5, 0.5,-0.5); glVertex3f(-0.5, 0.5,-0.5)
+
+        glNormal3f(0,-1, 0)
+        glVertex3f(-0.5,-0.5,-0.5); glVertex3f( 0.5,-0.5,-0.5)
+        glVertex3f( 0.5,-0.5, 0.5); glVertex3f(-0.5,-0.5, 0.5)
         glEnd()
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Objetos de cena
-    # ──────────────────────────────────────────────────────────────────────────
+    # ─── Objetos de cena ─────────────────────────────────────────────────────
 
     def draw_tree(self, x, z):
-        """Árvore blocky simples: tronco + copa."""
-        # Tronco
-        self.draw_box(x, 0.4, z, 0.25, 0.8, 0.25, COLOR_TREE_TRUNK)
-        # Copa (dois blocos para dar volume)
-        self.draw_box(x, 1.15, z, 0.75, 0.7, 0.75, COLOR_TREE_TOP)
-        self.draw_box(x, 1.65, z, 0.50, 0.5, 0.50, COLOR_TREE_TOP2)
+        self.draw_box(x, 0.40, z, 0.26, 0.80, 0.26, COLOR_TREE_TRUNK)
+        self.draw_box(x, 1.15, z, 0.78, 0.72, 0.78, COLOR_TREE_TOP)
+        self.draw_box(x, 1.68, z, 0.52, 0.52, 0.52, COLOR_TREE_TOP2)
 
-    def draw_shadow(self, x, z, size=0.45):
-        """Sombra circular plana sob o personagem."""
+    def draw_shadow(self, x, z, size=0.42):
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        glColor4f(0, 0, 0, 0.30)
+        glColor4f(0.0, 0.0, 0.0, 0.28)
         glBegin(GL_POLYGON)
-        for i in range(16):
-            ang = 2 * math.pi * i / 16
-            glVertex3f(x + math.cos(ang) * size, 0.01, z + math.sin(ang) * size)
+        for i in range(20):
+            ang = 2.0 * math.pi * i / 20
+            glVertex3f(x + math.cos(ang) * size, 0.005,
+                       z + math.sin(ang) * size * 0.6)
         glEnd()
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
 
     def draw_player(self, x, y, z, facing=1.0):
-        """
-        Personagem estilo pinto voxel.
-        facing: +1 para frente, -1 para trás.
-        """
         self.draw_shadow(x, z)
+        fz = -facing  # facing=+1 avança em -Z
 
-        # Corpo
-        self.draw_box(x, y + 0.35, z, 0.55, 0.50, 0.55, COLOR_PLAYER_BODY)
-        # Cabeça
-        self.draw_box(x, y + 0.82, z, 0.40, 0.38, 0.40, COLOR_PLAYER_BODY)
-        # Bico
-        self.draw_box(x, y + 0.78, z + facing * 0.26,
-                      0.18, 0.12, 0.15, COLOR_PLAYER_BEAK)
-        # Olhos
-        eye_off = 0.13
-        self.draw_box(x - eye_off, y + 0.88, z + facing * 0.21,
-                      0.08, 0.08, 0.06, COLOR_PLAYER_EYE)
-        self.draw_box(x + eye_off, y + 0.88, z + facing * 0.21,
-                      0.08, 0.08, 0.06, COLOR_PLAYER_EYE)
-        # Asas
-        self.draw_box(x - 0.35, y + 0.35, z, 0.15, 0.35, 0.45, COLOR_PLAYER_WING)
-        self.draw_box(x + 0.35, y + 0.35, z, 0.15, 0.35, 0.45, COLOR_PLAYER_WING)
+        self.draw_box(x,          y + 0.35, z,           0.55, 0.50, 0.55, COLOR_PLAYER_BODY)
+        self.draw_box(x,          y + 0.82, z,           0.40, 0.38, 0.40, COLOR_PLAYER_BODY)
+        self.draw_box(x,          y + 0.78, z+fz*0.26,   0.18, 0.12, 0.15, COLOR_PLAYER_BEAK)
+        self.draw_box(x - 0.13,   y + 0.88, z+fz*0.21,  0.08, 0.08, 0.06, COLOR_PLAYER_EYE)
+        self.draw_box(x + 0.13,   y + 0.88, z+fz*0.21,  0.08, 0.08, 0.06, COLOR_PLAYER_EYE)
+        self.draw_box(x - 0.35,   y + 0.38, z,           0.15, 0.35, 0.46, COLOR_PLAYER_WING)
+        self.draw_box(x + 0.35,   y + 0.38, z,           0.15, 0.35, 0.46, COLOR_PLAYER_WING)
 
-    def draw_car(self, x, z, direction, color_index, speed_factor=1.0):
-        """
-        Carro blocky.
-        direction: +1 ou -1 (sentido X).
-        """
+    def draw_car(self, x, z, direction, color_index):
         c = COLOR_CAR_BODY[color_index % len(COLOR_CAR_BODY)]
-        # Chassi
-        self.draw_box(x, 0.25, z, 0.75, 0.28, 1.0, c)
-        # Cabine
-        self.draw_box(x + direction * (-0.05), 0.55, z, 0.55, 0.30, 0.80, c)
-        # Para-brisas
-        self.draw_box(x + direction * 0.20, 0.56, z,
-                      0.08, 0.22, 0.62, COLOR_WINDOW)
-        # Rodas (4)
+        d = direction
+        self.draw_box(x,            0.18, z,  0.78, 0.24, 0.92, c)
+        self.draw_box(x+d*(-0.04),  0.46, z,  0.54, 0.28, 0.76, c)
+        self.draw_box(x+d*0.22,     0.48, z,  0.07, 0.20, 0.58, COLOR_WINDOW)
+        win_rear = (COLOR_WINDOW[0]*0.7, COLOR_WINDOW[1]*0.7, COLOR_WINDOW[2]*0.8)
+        self.draw_box(x+d*(-0.22),  0.48, z,  0.07, 0.18, 0.56, win_rear)
         wc = COLOR_WHEEL
-        for wx in [-0.30, 0.30]:
-            for wz in [-0.38, 0.38]:
-                self.draw_box(x + wx, 0.13, z + wz, 0.15, 0.22, 0.22, wc)
+        for wx_off in [-0.32, 0.32]:
+            for wz_off in [-0.35, 0.35]:
+                self.draw_box(x+wx_off, 0.14, z+wz_off, 0.16, 0.24, 0.24, wc)
 
     def draw_truck(self, x, z, direction, color_index):
-        """Caminhão: cabine + carroceria."""
         c = COLOR_TRUCK_BODY[color_index % len(COLOR_TRUCK_BODY)]
-        # Carroceria
-        self.draw_box(x + direction * (-0.55), 0.35, z, 1.30, 0.55, 0.95, c)
-        # Cabine
-        self.draw_box(x + direction * 0.60, 0.30, z, 0.55, 0.50, 0.85, c)
-        self.draw_box(x + direction * 0.68, 0.57, z, 0.42, 0.28, 0.70, c)
-        # Para-brisas
-        self.draw_box(x + direction * 0.80, 0.58, z,
-                      0.08, 0.22, 0.60, COLOR_WINDOW)
-        # Rodas (6)
+        d = direction
+        self.draw_box(x+d*(-0.52), 0.36, z, 1.28, 0.58, 0.92, c)
+        roof_c = (c[0]*0.75, c[1]*0.75, c[2]*0.75)
+        self.draw_box(x+d*(-0.52), 0.68, z, 1.28, 0.06, 0.94, roof_c)
+        self.draw_box(x+d*0.58,    0.30, z, 0.56, 0.52, 0.84, c)
+        self.draw_box(x+d*0.60,    0.60, z, 0.44, 0.28, 0.68, c)
+        self.draw_box(x+d*0.82,    0.60, z, 0.07, 0.22, 0.58, COLOR_WINDOW)
         wc = COLOR_WHEEL
-        for wx in [-0.80, -0.20, 0.60]:
-            for wz in [-0.42, 0.42]:
-                self.draw_box(x + wx, 0.14, z + wz, 0.15, 0.25, 0.25, wc)
+        for wx_off in [-0.78, -0.18, 0.58]:
+            for wz_off in [-0.40, 0.40]:
+                self.draw_box(x+wx_off, 0.15, z+wz_off, 0.16, 0.27, 0.27, wc)
 
     def draw_train(self, x, z, direction, wagon_index=0):
-        """Vagão de trem."""
         c = COLOR_TRAIN
-        # Corpo principal
-        self.draw_box(x, 0.52, z, 1.80, 0.72, 0.95, c)
-        # Frente (se primeiro vagão)
+        d = direction
+        self.draw_box(x, 0.50, z, 1.78, 0.70, 0.92, c)
+        roof_c = (c[0]*0.80, c[1]*0.08, c[2]*0.08)
+        self.draw_box(x, 0.88, z, 1.78, 0.06, 0.94, roof_c)
         if wagon_index == 0:
-            self.draw_box(x + direction * 0.98, 0.55, z,
-                          0.20, 0.65, 0.80, (0.65, 0.08, 0.08))
-        # Janelas
-        for wz in [-0.30, 0.0, 0.30]:
-            self.draw_box(x, 0.68, z + wz, 1.60, 0.22, 0.18, COLOR_TRAIN_WINDOW)
-        # Rodas / truques
-        for wx in [-0.60, 0.60]:
-            self.draw_box(x + wx, 0.16, z, 0.25, 0.25, 1.00, (0.25, 0.25, 0.28))
+            self.draw_box(x+d*0.96, 0.54, z, 0.18, 0.62, 0.78, (0.60, 0.06, 0.06))
+            self.draw_box(x+d*1.05, 0.62, z, 0.06, 0.14, 0.24, (1.0, 0.95, 0.70))
+        for wz_off in [-0.28, 0.0, 0.28]:
+            self.draw_box(x, 0.62, z+wz_off, 1.58, 0.20, 0.16, COLOR_TRAIN_WINDOW)
+        for wx_off in [-0.55, 0.55]:
+            self.draw_box(x+wx_off, 0.16, z, 0.28, 0.26, 0.98, (0.22, 0.22, 0.25))
+            for wz_off in [-0.32, 0.32]:
+                self.draw_box(x+wx_off, 0.10, z+wz_off, 0.26, 0.18, 0.20, (0.15, 0.15, 0.16))
 
     def draw_log(self, x, z, length):
-        """Tronco flutuante de comprimento `length` células."""
-        w = length * CELL_SIZE - 0.1
-        # Corpo
+        w = length * CELL_SIZE - 0.10
         self.draw_box(x, 0.12, z, w, 0.22, 0.82, COLOR_LOG)
-        # Topos (ends)
-        self.draw_box(x - w * 0.5 + 0.07, 0.12, z, 0.12, 0.24, 0.84, COLOR_LOG_END)
-        self.draw_box(x + w * 0.5 - 0.07, 0.12, z, 0.12, 0.24, 0.84, COLOR_LOG_END)
+        self.draw_box(x - w*0.5 + 0.06, 0.12, z, 0.11, 0.24, 0.84, COLOR_LOG_END)
+        self.draw_box(x + w*0.5 - 0.06, 0.12, z, 0.11, 0.24, 0.84, COLOR_LOG_END)
 
     def draw_lilypad(self, x, z):
-        """Vitória-régia: disco verde + flor."""
-        self.draw_box(x, 0.06, z, LILYPAD_SIZE, 0.08, LILYPAD_SIZE, COLOR_LILYPAD)
-        # Flor central
-        self.draw_box(x, 0.14, z, 0.18, 0.12, 0.18, COLOR_FLOWER)
+        self.draw_box(x, 0.06, z, LILYPAD_SIZE, 0.07, LILYPAD_SIZE, COLOR_LILYPAD)
+        self.draw_box(x, 0.13, z, 0.20, 0.11, 0.20, COLOR_FLOWER)
 
     def draw_eagle(self, x, y, z, wing_angle, scale=1.0):
-        """
-        Águia estilo blocky.
-        wing_angle em radianos para animação de asas.
-        """
         glPushMatrix()
         glTranslatef(x, y, z)
         glScalef(scale, scale, scale)
-
-        wing_flap = math.sin(wing_angle) * 0.4
-
-        # Corpo
-        self.draw_box(0, 0, 0, 1.20, 0.55, 0.60, COLOR_EAGLE_BODY)
-        # Cabeça branca
-        self.draw_box(0.55, 0.25, 0, 0.45, 0.42, 0.42, COLOR_EAGLE_HEAD)
-        # Bico
-        self.draw_box(0.82, 0.12, 0, 0.22, 0.14, 0.18, COLOR_EAGLE_BEAK)
-        # Olho
-        self.draw_box(0.73, 0.30, 0.18, 0.08, 0.08, 0.06, (0.1, 0.1, 0.1))
-        # Asa esquerda
+        flap = math.sin(wing_angle) * 0.45
+        self.draw_box(0, 0, 0, 1.20, 0.54, 0.58, COLOR_EAGLE_BODY)
+        self.draw_box(0.54, 0.26, 0, 0.44, 0.40, 0.40, COLOR_EAGLE_HEAD)
+        self.draw_box(0.80, 0.14, 0, 0.18, 0.12, 0.16, COLOR_EAGLE_BEAK)
+        self.draw_box(0.90, 0.06, 0, 0.10, 0.10, 0.12, COLOR_EAGLE_BEAK)
+        self.draw_box(0.72, 0.32, 0.17, 0.07, 0.07, 0.05, (0.05, 0.05, 0.05))
+        self.draw_box(-0.70, -0.06, 0, 0.36, 0.11, 0.48, COLOR_EAGLE_BODY)
         glPushMatrix()
-        glTranslatef(0, 0, 0.35)
-        glRotatef(-wing_flap * 30, 1, 0, 0)
-        self.draw_box(0, 0.10 + wing_flap * 0.3, 0.60,
-                      1.10, 0.14, 1.10, COLOR_EAGLE_BODY)
+        glTranslatef(0, 0, 0.30)
+        glRotatef(-flap * 35, 1, 0, 0)
+        self.draw_box(0, 0.12 + flap*0.25, 0.62, 1.10, 0.13, 1.05, COLOR_EAGLE_BODY)
         glPopMatrix()
-        # Asa direita
         glPushMatrix()
-        glTranslatef(0, 0, -0.35)
-        glRotatef(wing_flap * 30, 1, 0, 0)
-        self.draw_box(0, 0.10 + wing_flap * 0.3, -0.60,
-                      1.10, 0.14, 1.10, COLOR_EAGLE_BODY)
+        glTranslatef(0, 0, -0.30)
+        glRotatef(flap * 35, 1, 0, 0)
+        self.draw_box(0, 0.12 + flap*0.25, -0.62, 1.10, 0.13, 1.05, COLOR_EAGLE_BODY)
         glPopMatrix()
-        # Cauda
-        self.draw_box(-0.68, -0.05, 0, 0.35, 0.12, 0.50, COLOR_EAGLE_BODY)
-
         glPopMatrix()
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # Terrenos / Lanes
-    # ──────────────────────────────────────────────────────────────────────────
+    # ─── Terrenos — SEM iluminação (flat color, evita estouro) ───────────────
 
-    def draw_grass_lane(self, row, is_dark=False):
-        """Renderiza uma linha de grama."""
-        c = COLOR_GRASS_DARK if is_dark else COLOR_GRASS_LIGHT
-        z = float(row)
-        for col in range(-HALF_GRID, HALF_GRID + 1):
-            self.draw_box(float(col), -0.05, z, 1.0, 0.10, 1.0, c)
+    def _flat_quad(self, z, x_min, x_max, z_min, z_max, color):
+        """
+        Quad plano do chão sem iluminação.
+        y = -0.02 para ficar abaixo dos objetos e evitar z-fighting.
+        Ordem anti-horária vista de cima => normal +Y => passa no GL_BACK cull.
+        """
+        glColor3f(*color)
+        glBegin(GL_QUADS)
+        glVertex3f(x_min, -0.02, z_max)
+        glVertex3f(x_max, -0.02, z_max)
+        glVertex3f(x_max, -0.02, z_min)
+        glVertex3f(x_min, -0.02, z_min)
+        glEnd()
 
-    def draw_road_lane(self, row):
-        """Renderiza uma linha de estrada com faixas."""
-        z = float(row)
-        # Asfalto
-        for col in range(-HALF_GRID, HALF_GRID + 1):
-            self.draw_box(float(col), -0.05, z, 1.0, 0.10, 1.0, COLOR_ROAD)
-        # Faixa tracejada central
+    def draw_grass_lane(self, z_world, is_dark=False):
+        c    = COLOR_GRASS_DARK if is_dark else COLOR_GRASS_LIGHT
+        z    = float(z_world)
+        half = HALF_GRID + 0.5
         glDisable(GL_LIGHTING)
+        self._flat_quad(z, -half, half, z - 0.5, z + 0.5, c)
+        glEnable(GL_LIGHTING)
+
+    def draw_road_lane(self, z_world):
+        z    = float(z_world)
+        half = HALF_GRID + 0.5
+        glDisable(GL_LIGHTING)
+        self._flat_quad(z, -half, half, z - 0.5, z + 0.5, COLOR_ROAD)
+        # Faixas tracejadas
         glColor3f(*COLOR_ROAD_LINE)
-        glLineWidth(2.0)
+        glLineWidth(2.5)
         glBegin(GL_LINES)
         for col in range(-HALF_GRID, HALF_GRID + 1, 2):
-            glVertex3f(float(col) - 0.3, 0.02, z)
-            glVertex3f(float(col) + 0.3, 0.02, z)
+            glVertex3f(float(col) - 0.28, 0.0, z)
+            glVertex3f(float(col) + 0.28, 0.0, z)
         glEnd()
         glEnable(GL_LIGHTING)
 
-    def draw_river_lane(self, row, anim_offset=0.0):
-        """Renderiza uma linha de rio com efeito de onda."""
-        z = float(row)
-        for col in range(-HALF_GRID, HALF_GRID + 1):
-            # Alterna cores de água para efeito visual
-            t = (col + anim_offset) % 2.0
-            c = COLOR_WATER if t < 1.0 else COLOR_WATER_DARK
-            self.draw_box(float(col), -0.05, z, 1.0, 0.10, 1.0, c)
-
-    def draw_rail_lane(self, row):
-        """Renderiza uma linha de trilhos de trem."""
-        z = float(row)
-        # Lastro
-        for col in range(-HALF_GRID, HALF_GRID + 1):
-            self.draw_box(float(col), -0.05, z, 1.0, 0.10, 1.0, COLOR_RAIL_BED)
-        # Dormentes
+    def draw_river_lane(self, z_world, anim_offset=0.0):
+        z = float(z_world)
         glDisable(GL_LIGHTING)
-        glColor3f(*COLOR_RAIL_TRACK)
-        half = HALF_GRID + 0.5
-        for offset in [-0.35, 0.35]:
-            glBegin(GL_QUADS)
-            glVertex3f(-half, 0.02, z + offset - 0.05)
-            glVertex3f( half, 0.02, z + offset - 0.05)
-            glVertex3f( half, 0.02, z + offset + 0.05)
-            glVertex3f(-half, 0.02, z + offset + 0.05)
-            glEnd()
-        # Trilhos
-        for col in range(-HALF_GRID, HALF_GRID + 1, 1):
-            self.draw_box(float(col), 0.05, z, 0.8, 0.06, 0.12, COLOR_RAIL_TRACK)
+        for col in range(-HALF_GRID, HALF_GRID + 1):
+            t  = (col + anim_offset) % 2.0
+            c  = COLOR_WATER if t < 1.0 else COLOR_WATER_DARK
+            cx = float(col)
+            self._flat_quad(z, cx - 0.5, cx + 0.5, z - 0.5, z + 0.5, c)
         glEnable(GL_LIGHTING)
 
-    # ──────────────────────────────────────────────────────────────────────────
-    # HUD (2D overlay)
-    # ──────────────────────────────────────────────────────────────────────────
+    def draw_rail_lane(self, z_world):
+        z    = float(z_world)
+        half = HALF_GRID + 0.5
+        glDisable(GL_LIGHTING)
+        # Lastro
+        self._flat_quad(z, -half, half, z - 0.5, z + 0.5, COLOR_RAIL_BED)
+        # Dormentes
+        glColor3f(0.36, 0.26, 0.16)
+        for col in range(-HALF_GRID, HALF_GRID + 1):
+            cx = float(col)
+            glBegin(GL_QUADS)
+            glVertex3f(cx - 0.40, -0.01, z + 0.44)
+            glVertex3f(cx + 0.40, -0.01, z + 0.44)
+            glVertex3f(cx + 0.40, -0.01, z - 0.44)
+            glVertex3f(cx - 0.40, -0.01, z - 0.44)
+            glEnd()
+        # Trilhos
+        glColor3f(*COLOR_RAIL_TRACK)
+        for z_off in [-0.28, 0.28]:
+            glBegin(GL_QUADS)
+            glVertex3f(-half, 0.005, z + z_off + 0.05)
+            glVertex3f( half, 0.005, z + z_off + 0.05)
+            glVertex3f( half, 0.005, z + z_off - 0.05)
+            glVertex3f(-half, 0.005, z + z_off - 0.05)
+            glEnd()
+        glEnable(GL_LIGHTING)
+
+    # ─── HUD (2D overlay) ─────────────────────────────────────────────────────
 
     def begin_2d(self):
-        """Entra no modo 2D para desenhar o HUD."""
         glDisable(GL_LIGHTING)
         glDisable(GL_DEPTH_TEST)
         glDisable(GL_FOG)
@@ -372,7 +318,6 @@ class Renderer:
         glLoadIdentity()
 
     def end_2d(self):
-        """Sai do modo 2D."""
         glMatrixMode(GL_PROJECTION)
         glPopMatrix()
         glMatrixMode(GL_MODELVIEW)
@@ -381,15 +326,13 @@ class Renderer:
         glEnable(GL_LIGHTING)
         glEnable(GL_FOG)
 
-    def draw_text(self, x, y, text, color=(1, 1, 1), font=GLUT_BITMAP_HELVETICA_18):
-        """Desenha texto 2D na posição (x, y) da tela."""
+    def draw_text(self, x, y, text, color=(1,1,1), font=GLUT_BITMAP_HELVETICA_18):
         glColor3f(*color)
         glRasterPos2f(x, y)
         for ch in text:
             glutBitmapCharacter(font, ord(ch))
 
     def draw_rect_2d(self, x, y, w, h, color, alpha=1.0):
-        """Retângulo sólido 2D (para painéis de HUD)."""
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         glColor4f(*color, alpha)
@@ -401,26 +344,21 @@ class Renderer:
         glEnd()
         glDisable(GL_BLEND)
 
-    def draw_warning_flash(self, row, flash_state, cam_z_offset=0):
-        """
-        Pisca a lane do trilho em amarelo/vermelho como aviso de trem.
-        flash_state: valor 0..1 que pulsa.
-        """
-        if flash_state <= 0:
+    def draw_warning_flash(self, z_world, flash_state):
+        if flash_state <= 0.0:
             return
-        z = float(row)
-        alpha = flash_state * 0.5
+        z    = float(z_world)
+        half = HALF_GRID + 0.5
+        c    = COLOR_WARNING if flash_state < 0.65 else COLOR_DANGER
         glDisable(GL_LIGHTING)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-        c = COLOR_WARNING if flash_state < 0.7 else COLOR_DANGER
-        glColor4f(*c, alpha)
-        half = HALF_GRID + 0.5
+        glColor4f(*c, flash_state * 0.55)
         glBegin(GL_QUADS)
-        glVertex3f(-half, 0.05, z - 0.5)
-        glVertex3f( half, 0.05, z - 0.5)
-        glVertex3f( half, 0.05, z + 0.5)
-        glVertex3f(-half, 0.05, z + 0.5)
+        glVertex3f(-half, 0.01, z + 0.50)
+        glVertex3f( half, 0.01, z + 0.50)
+        glVertex3f( half, 0.01, z - 0.50)
+        glVertex3f(-half, 0.01, z - 0.50)
         glEnd()
         glDisable(GL_BLEND)
         glEnable(GL_LIGHTING)
