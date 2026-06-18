@@ -1,14 +1,8 @@
-"""
-CruzaRua - Jogo inspirado em Crossy Road
-Desenvolvido com Python 3, PyOpenGL, FreeGLUT e NumPy
 
-Ponto de entrada principal do jogo.
-"""
 
 import sys
 import os
 
-# Adiciona o diretório do projeto ao path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from OpenGL.GL import *
@@ -17,7 +11,6 @@ from OpenGL.GLU import *
 
 from core.game import Game
 
-# Instância global do jogo (necessária para callbacks do GLUT)
 game = None
 
 
