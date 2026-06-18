@@ -1,6 +1,3 @@
-"""
-core/renderer.py - Sistema de renderização OpenGL.
-"""
 
 from OpenGL.GL import *
 from OpenGL.GLU import *
@@ -16,7 +13,6 @@ class Renderer:
         self.width  = width
         self.height = height
 
-    # ─── Inicialização ────────────────────────────────────────────────────────
 
     def init(self):
         glClearColor(*COLOR_SKY, 1.0)
@@ -24,22 +20,17 @@ class Renderer:
         glDepthFunc(GL_LEQUAL)
         glEnable(GL_CULL_FACE)
         glCullFace(GL_BACK)
-
-        # Iluminação — usada APENAS em objetos 3D (veículos, árvores, player)
-        # O terreno é desenhado com glDisable(GL_LIGHTING) para evitar estouro.
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
         glLightfv(GL_LIGHT0, GL_POSITION, [4.0, 10.0, 5.0, 0.0])
         glLightfv(GL_LIGHT0, GL_DIFFUSE,  [0.70, 0.68, 0.60, 1.0])
         glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.0,  0.0,  0.0,  1.0])
         glLightfv(GL_LIGHT0, GL_SPECULAR, [0.0,  0.0,  0.0,  1.0])
-        # Ambient global: ilumina faces em sombra sem estouro
         glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.42, 0.42, 0.46, 1.0])
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
         glShadeModel(GL_SMOOTH)
 
-        # Névoa
         glEnable(GL_FOG)
         glFogfv(GL_FOG_COLOR, [*COLOR_FOG, 1.0])
         glFogi(GL_FOG_MODE, GL_LINEAR)
@@ -57,10 +48,8 @@ class Renderer:
         gluPerspective(42.0, width / height, 0.1, 120.0)
         glMatrixMode(GL_MODELVIEW)
 
-    # ─── Primitivas ───────────────────────────────────────────────────────────
 
     def draw_box(self, x, y, z, w, h, d, color):
-        """Cubo/prisma centrado em (x,y,z) com dimensões (w,h,d). Usa iluminação."""
         glColor3f(*color)
         glPushMatrix()
         glTranslatef(x, y, z)
@@ -91,7 +80,6 @@ class Renderer:
         glPopMatrix()
 
     def _unit_box(self):
-        """Cubo unitário centrado na origem com normais corretas."""
         glBegin(GL_QUADS)
         glNormal3f(0, 0, 1)
         glVertex3f(-0.5,-0.5, 0.5); glVertex3f( 0.5,-0.5, 0.5)
@@ -118,7 +106,6 @@ class Renderer:
         glVertex3f( 0.5,-0.5, 0.5); glVertex3f(-0.5,-0.5, 0.5)
         glEnd()
 
-    # ─── Objetos de cena ─────────────────────────────────────────────────────
 
     def draw_tree(self, x, z):
         self.draw_box(x, 0.40, z, 0.26, 0.80, 0.26, COLOR_TREE_TRUNK)
@@ -141,7 +128,7 @@ class Renderer:
 
     def draw_player(self, x, y, z, facing=1.0):
         self.draw_shadow(x, z)
-        fz = -facing  # facing=+1 avança em -Z
+        fz = -facing
 
         self.draw_box(x,          y + 0.35, z,           0.55, 0.50, 0.55, COLOR_PLAYER_BODY)
         self.draw_box(x,          y + 0.82, z,           0.40, 0.38, 0.40, COLOR_PLAYER_BODY)
@@ -227,14 +214,7 @@ class Renderer:
         glPopMatrix()
         glPopMatrix()
 
-    # ─── Terrenos — SEM iluminação (flat color, evita estouro) ───────────────
-
     def _flat_quad(self, z, x_min, x_max, z_min, z_max, color):
-        """
-        Quad plano do chão sem iluminação.
-        y = -0.02 para ficar abaixo dos objetos e evitar z-fighting.
-        Ordem anti-horária vista de cima => normal +Y => passa no GL_BACK cull.
-        """
         glColor3f(*color)
         glBegin(GL_QUADS)
         glVertex3f(x_min, -0.02, z_max)
@@ -256,7 +236,6 @@ class Renderer:
         half = HALF_GRID + 0.5
         glDisable(GL_LIGHTING)
         self._flat_quad(z, -half, half, z - 0.5, z + 0.5, COLOR_ROAD)
-        # Faixas tracejadas
         glColor3f(*COLOR_ROAD_LINE)
         glLineWidth(2.5)
         glBegin(GL_LINES)
@@ -280,9 +259,7 @@ class Renderer:
         z    = float(z_world)
         half = HALF_GRID + 0.5
         glDisable(GL_LIGHTING)
-        # Lastro
         self._flat_quad(z, -half, half, z - 0.5, z + 0.5, COLOR_RAIL_BED)
-        # Dormentes
         glColor3f(0.36, 0.26, 0.16)
         for col in range(-HALF_GRID, HALF_GRID + 1):
             cx = float(col)
@@ -292,7 +269,6 @@ class Renderer:
             glVertex3f(cx + 0.40, -0.01, z - 0.44)
             glVertex3f(cx - 0.40, -0.01, z - 0.44)
             glEnd()
-        # Trilhos
         glColor3f(*COLOR_RAIL_TRACK)
         for z_off in [-0.28, 0.28]:
             glBegin(GL_QUADS)
@@ -302,8 +278,6 @@ class Renderer:
             glVertex3f(-half, 0.005, z + z_off - 0.05)
             glEnd()
         glEnable(GL_LIGHTING)
-
-    # ─── HUD (2D overlay) ─────────────────────────────────────────────────────
 
     def begin_2d(self):
         glDisable(GL_LIGHTING)
